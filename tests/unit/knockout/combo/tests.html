@@ -21,7 +21,6 @@
 	<script type="text/javascript" src="../../../../src/js/modules/i18n/infragistics.ui.combo-en.js"></script>
 	<script type="text/javascript" src="../../../../src/js/modules/infragistics.util.js"></script>
 	<script type="text/javascript" src="../../../../src/js/modules/infragistics.util.jquery.js"></script>
-	<script type="text/javascript" src="../../../../src/js/modules/infragistics.util.jquerydeferred.js"></script>
 	<script type="text/javascript" src="../../../../src/js/modules/infragistics.templating.js"></script>
 	<script type="text/javascript" src="../../../../src/js/modules/infragistics.ui.widget.js"></script>
 	<script type="text/javascript" src="../../../../src/js/modules/infragistics.datasource.js"></script>
@@ -89,14 +88,25 @@
 
 		$(function () {
 			"use strict"
-			
+
 			// Define Model
 			function ViewModel() {
 				var self = this, i;
+				var tmp = [];
+
+				for (var j = 0; j < 75; j++) {
+					tmp.push({ Name: j + 1 });
+				}
 
 				self.data = ko.observableArray(ds1);
 				ds1[0] = ko.observable(ds1[0]);
 				ds1[1].name = ko.observable(ds1[1].name);
+
+				self.dataComboItemTest = ko.observableArray([
+						ko.observable( new Item(1, "item1")),
+						ko.observable( new Item(2, "item2")),
+						ko.observable( new Item(3, "item3"))
+				]);
 
 				self.codeList = dsModelSelectionChanged;
 				self.selectedItems = ko.observableArray();
@@ -106,6 +116,9 @@
 					{ "Color": "Blue" },
 					{ "Color": "Red" },
 				]);
+
+				self.nameList = ko.observableArray(tmp);
+				self.selectCode = ko.observableArray();
 
 				self.item = { name: "name5", value: 5 };
 				self.addItem = function () {
@@ -206,6 +219,12 @@
 
 				self.isDisabled = ko.observable(false);
 
+				self.isDisabledInvalid = true;
+
+				self.isVisible = ko.observable(true);
+
+				self.isVisibleInvalid = false;
+
 				self.bigData = ko.observable(modelBigData);
 			}
 			ko.applyBindings(globalViewModel = new ViewModel());
@@ -233,8 +252,11 @@
 				testId_14 = '[ID14] Test event attributes and igCombo API',
 				testId_15 = '[ID15] Test enableSelectionChangedUpdate property',
 				testId_16 = '[ID16] Bug #186778 Test setting values with null',
-				testId_17 = '[ID17] Custom values should be persisted in the combo input',
-				testId_18 = '[ID18] Selected Items should be unselect after passing an empty array';
+                testId_17 = '[ID17] Custom values should be persisted in the combo input',
+				testId_18 = '[ID18] Selected Items should be unselect after passing an empty array',
+				testId_19 = '[ID19] Selecting an item in a virtualized combo should preserve position in dropdown list',
+				testId_20 = '[ID20] Test igComboVisible binding',
+				testId_21 = '[ID21] Test igComboItem binding'
 
 			test(testId_1, function () {
 				ok(typeof (ko.bindingHandlers.igCombo) !== 'undefined', 'igCombo extension for KnockoutJS is not loaded.');
@@ -273,7 +295,6 @@
 
 				globalViewModel.removeItem();
 				checkViewForNew(5, 0, 'name0', 0);
-
 			});
 			test(testId_10, function () {
 				var combo = $('#comboCascadingChild'),
@@ -330,24 +351,53 @@
 				$comboInput.blur();
 				ok($comboInput.val() !== "", "The igCombo custom value is not removed from the input");
 				ok($combo.igCombo("text") === "Block", "The custom value is persisted");
+            });
+
+            test(testId_18, function() {
+                var $combo = $('#comboClearSelectedVal'),
+                    $comboInput = $combo.data('igCombo')._options.$input;
+
+                ok($combo.igCombo("selectedItems").length > 0, "There are some selected items.");
+                ok($comboInput.val() !== "", "There is some values that persists into the input")
+
+                globalViewModel.data.removeAll();
+
+                ok($combo.igCombo("selectedItems") === null, "Selected items were successfuly removed.");
+                ok($comboInput.val() === "", "There aren't any values into the input.")
 			});
 
-			test(testId_18, function() {
-				var $combo = $('#comboClearSelectedVal'),
-					$comboInput = $combo.data('igCombo')._options.$input;
-			
-				ok($combo.igCombo("selectedItems").length > 0, "There are some selected items.");
-				ok($comboInput.val() !== "", "There is some values that persists into the input")
-			
- 				globalViewModel.data.removeAll();
-				
- 				ok($combo.igCombo("selectedItems") === null, "Selected items were successfuly removed.");
-					ok($comboInput.val() === "", "There aren't any values into the input.")
+			test(testId_19, function() {
+				var $combo = $("#virtualizationWithSelection"),
+					$listCont = $combo.data("igCombo")._options.$dropDownListCont,
+					$listItems;
+
+				$combo.igCombo("openDropDown");
+				for (var i = 0; i < 75; i++) {
+					emulateKeyBoard("down", false, false, false, $combo);
+				}
+
+				$listItems = $combo.igCombo("listItems");
+				stop();
+
+				setTimeout(function() {
+					start();
+					equal($listItems.last().text(), "75");
+					emulateClick($listItems.last());
+					var lastItem = $listItems.last();
+					stop();
+
+					setTimeout(function() {
+						start();
+						$listItems = $combo.igCombo("listItems");
+						equal($listItems.last().text(), lastItem.text());
+						$combo.igCombo("closeDropDown");
+					}, 200);
+				}, 100);
 			});
 
 			var testId = 'Test disabled binding';
-			test(testId, 12, function () {
-				var $combo = $("#comboDisabled"), $chk = $("#chkDisabled");
+			test(testId, 16, function () {
+				var $combo = $("#comboDisabled"), $comboInvalid = $("#comboDisabledInvalid"), $chk = $("#chkDisabled");
 
 				ok(!$combo.igCombo("option", "disabled"), "Editor should be enabled");
 				ok(!$combo.igCombo("valueInput").prop("disabled"), "Editor should be enabled");
@@ -365,8 +415,74 @@
 				ok(!$combo.igCombo("valueInput").prop("disabled"), "Editor should be enabled");
 				equal($combo.igCombo("valueInput").attr("disabled"), undefined, "Editor should be enabled");
 				ok(!$combo.igCombo("comboWrapper").hasClass($.ui.igCombo.prototype.css.disabled), "Editor should be enabled");
+
+				ok(!$comboInvalid.igCombo("option", "disabled"), "Editor should be enabled");
+				ok(!$comboInvalid.igCombo("valueInput").prop("disabled"), "Editor should be enabled");
+				equal($comboInvalid.igCombo("valueInput").attr("disabled"), undefined, "Editor should be enabled");
+				ok(!$comboInvalid.igCombo("comboWrapper").hasClass($.ui.igCombo.prototype.css.disabled), "Editor should be enabled");
+
 				$combo.remove();
+				$comboInvalid.remove();
 				$chk.remove();
+			});
+
+			test(testId_20, 7, function () { 
+				var $comboInput = $("#comboInvisibleInput"), $comboDiv = $("#comboInvisibleDiv"), $comboSpan = $("#comboInvisibleSpan"), $chkInvisible = $("#chkInvisible"), $comboInvalidVis = $("#comboInvalidVis"); 
+				
+				// Input placeholder
+				equal($comboInput.igCombo("comboWrapper").css("display"), "inline-block", "Editor in input should be visible");
+				// Div placeholder
+				equal($comboDiv.igCombo("comboWrapper").css("display"), "inline-block", "Editor in div should be visible");
+				// Span placeholder
+				equal($comboSpan.igCombo("comboWrapper").css("display"), "inline-block", "Editor in span should be visible");
+				
+				$chkInvisible.click();
+
+				equal($comboDiv.igCombo("comboWrapper").css("display"), "none", "Editor in div should be invisible");
+				equal($comboInput.igCombo("comboWrapper").css("display"), "none", "Editor in input should be invisible");
+				equal($comboSpan.igCombo("comboWrapper").css("display"), "none", "Editor in span should be invisible");
+				
+				$chkInvisible.click();
+
+				equal($comboInvalidVis.igCombo("comboWrapper").css("display"), "inline-block", "Editor should be visible when invalid not observable value is set.");
+
+				$comboInput.remove();
+				$comboDiv.remove();
+				$comboSpan.remove();
+				$comboInvalidVis.remove();
+				$chkInvisible.remove();
+			});
+
+			test(testId_21, 7, function () { 
+				// Test igComboItem binding
+				// Open the combo list and get the current item with index 1.
+				// Verify the clicked item's text and value are correct, verify items number.
+				// Change data item with the same index in the data source.
+				// Verify that the item is updated correctly in the items list as well as in the input field when selected.
+				
+				var $comboItemTest = $("#comboItemTest"), index = 1, baseText = "item2", baseValue = 2, updatedText = "item99", updatedValue = 99;
+
+				$('#comboItemTest').igCombo("openDropDown");			
+				var itemList = $('#comboItemTest').data("igCombo")._options.$dropDownCont.find("li");
+				var oldItemListLenght = itemList.length;
+				equal(itemList[index].textContent, baseText, "Incorrect item in item list.");
+
+				emulateClick($(itemList[index]));			
+				ok($('#comboItemTest').igCombo('text') === baseText, 'The igCombo item text is not correct.');
+				ok($('#comboItemTest').igCombo('valueInput').val() == baseValue, 'The igCombo item value is not correct.');
+
+				globalViewModel.dataComboItemTest()[index](new Item(updatedValue, updatedText)); 
+
+				$('#comboItemTest').igCombo("openDropDown");
+				var updatedItemList = $('#comboItemTest').data("igCombo")._options.$dropDownCont.find("li");
+				ok(updatedItemList.length === oldItemListLenght, "Incorrect items number.");
+				equal(updatedItemList[index].textContent, updatedText, "The igCombo item is not updated in the items list.");
+
+				emulateClick($(itemList[index]));			
+				ok($('#comboItemTest').igCombo('text') === updatedText, 'The updated igCombo item text in the editor is not correct.');
+				ok($('#comboItemTest').igCombo('valueInput').val() == updatedValue, 'The updated igCombo item value in the editor is not correct.');
+
+				$comboItemTest.remove();
 			});
 
 			var testId = 'Test big data';
@@ -379,7 +495,7 @@
 				ok(end - start < 5000, "Binding big data is taking too much time");
 				$comboCont.remove();
 			});
-
+			
 			function testBasic(newText, newValue, input) {
 				ok($('#comboBasic').igCombo('text') === newText, 'The igCombo is not updated properly from the knockout extension');
 				ok($('#comboSelectedItems').igCombo('text') === newText, 'The igCombo is not updated properly from the knockout extension');
@@ -390,6 +506,28 @@
 				ok($('#comboBasic').igCombo('valueInput').val() === newValue, 'The igCombo is not updated properly from the knockout extension');
 				ok($('#comboSelectedItems').igCombo('valueInput').val() === newValue, 'The igCombo is not updated properly from the knockout extension');
 
+			}
+
+			function emulateKeyBoard(key, ctrl, shift, alt, element) {
+				var keyDown = jQuery.Event("keydown"),
+					keyUp = jQuery.Event("keyup");
+
+				keyDown.ctrlKey = keyUp.ctrlKey = ctrl;
+				keyDown.altKey = keyUp.altKey = alt;
+				keyDown.shiftKey = keyUp.shiftKey = shift;
+
+				switch (key) {
+					case "up": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.UP; break;
+					case "left": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.LEFT; break;
+					case "right": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.RIGHT; break;
+					case "down": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.DOWN; break;
+					case "enter": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.ENTER; break;
+					case "esc": keyDown.keyCode = keyUp.keyCode = $.ui.keyCode.ESCAPE; break;
+					default: keyDown.keyCode = keyUp.keyCode = key; break;
+				}
+
+				element.trigger(keyDown);
+				element.trigger(keyUp);
 			}
 
 			function emulateClick($element, ctrl, shift) {
@@ -541,19 +679,37 @@
 				allowCustomValue: true
 			}
 		" />
+    </div>
+    <div class="test-container">
+        <input id="comboClearSelectedVal" data-bind="
+            igCombo: {
+                dataSource: data,
+                textKey: 'name',
+				valueKey: 'value',
+				selectedItems: selectedItems,
+                multiSelection: {
+                    enabled: true
+                }
+            }
+        " />
 	</div>
 	<div class="test-container">
-	   <input id="comboClearSelectedVal" data-bind="
-	       igCombo: {
-	           dataSource: data,
-	           textKey: 'name',
-	           valueKey: 'value',
-	           selectedItems: selectedItems,
-	           multiSelection: {
-	               enabled: true
-	           }
-	       }
-	   " />
+		<label class="view-container">Selecting items in virtualized combo beyond visible items count</label>
+		<input type="text" id="virtualizationWithSelection" data-bind="
+			igCombo: {
+				animationShowDuration: 0,
+				animationHideDuration: 0,
+				selectedItems: selectCode,
+				dataSource: nameList,
+				textKey: 'Name',
+				valueKey: 'Name',
+				multiSelection: {
+					enabled: true,
+					showCheckboxes: true
+				},
+				virtualization: true,
+			}
+		" />
 	</div>
 	<div class="clear-floating"></div>
 	<div class="view-container">
@@ -654,14 +810,55 @@
 	</div>
 	<div class="clear-floating"></div>
 
+	<div id="bigDataContainer"></div>
+
 	<input id="comboDisabled" data-bind="igCombo: {
 			dataSource: dataNew,
 			width: '200'
 		}, igComboDisable: isDisabled" />
 
+		<input id="comboDisabledInvalid" data-bind="igCombo: {
+			dataSource: dataNew,
+			width: '200'
+		}, igComboDisable: isDisabledInvalid" />
+
 	<input id="chkDisabled" type="checkbox" data-bind="checked: isDisabled"/>
-	
-	<div id="bigDataContainer"></div>
+
+	<!-- igComboItem -->
+		<input id="comboItemTest" data-bind="igCombo: {
+			dataSource: dataComboItemTest,
+			width: '150', 
+			valueKey: 'value',
+			textKey: 'text'
+		}" />
+
+	<div class="clear-floating"></div>
+
+	<!-- igComboVisible -->
+	<div>
+		<input id="chkInvisible" type="checkbox" data-bind="checked: isVisible" />
+	</div>
+	<div class="clear-floating"></div>
+	<div>
+		<input id="comboInvisibleInput" data-bind="igCombo: {
+			dataSource: dataObservableItem,
+			width: '150'
+		}, igComboVisible: isVisible" />
+		<span id="comboInvisibleSpan" data-bind="igCombo: {
+			dataSource: dataObservableItem,
+			width: '150'
+		}, igComboVisible: isVisible" />
+		<div id="comboInvisibleDiv" data-bind="igCombo: {
+			dataSource: dataObservableItem,
+			width: '150'
+		}, igComboVisible: isVisible" />	
+
+		<div id="comboInvalidVis" data-bind="igCombo: {
+			dataSource: dataObservableItem,
+			width: '150'
+		}, igComboVisible: isVisibleInvalid" />
+	</div>
+	<div class="clear-floating"></div>
 </div>
 </body>
 </html>
